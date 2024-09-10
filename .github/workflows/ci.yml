@@ -20,8 +20,37 @@ on:
     branches: [master]
   pull_request:
 
+permissions: read-all
+
 jobs:
   run_ci_tests:
     runs-on: ubuntu-latest
     steps:
-      - run: exit 0
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Install Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: "20.14.0"
+
+      - name: Setup CI Environment
+        run: bash setup.sh
+
+      - name: Run static checks
+        run: bash run.sh static_checks
+
+      - name: Run Move tests
+        run: bash run.sh test
+
+      - name: Run Move tests on v2
+        run: |
+          git apply packages/stablecoin/examples/v2_base.patch
+          bash run.sh test
+          git apply -R packages/stablecoin/examples/v2_base.patch
+
+  scan:
+    if: github.event_name == 'pull_request'
+    uses: circlefin/circle-public-github-workflows/.github/workflows/pr-scan.yaml@v1
+    with:
+      allow-reciprocal-licenses: false
