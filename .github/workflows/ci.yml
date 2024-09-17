@@ -20,7 +20,8 @@ on:
     branches: [master]
   pull_request:
 
-permissions: read-all
+permissions:
+  contents: write
 
 jobs:
   run_ci_tests:
@@ -54,3 +55,7 @@ jobs:
     uses: circlefin/circle-public-github-workflows/.github/workflows/pr-scan.yaml@v1
     with:
       allow-reciprocal-licenses: false
+
+  release-sbom:
+    if: github.event_name == 'push'
+    uses: circlefin/circle-public-github-workflows/.github/workflows/attach-release-assets.yaml@v1
