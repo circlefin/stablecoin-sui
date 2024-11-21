@@ -18,6 +18,7 @@
 name = "sui_extensions"
 edition = "2024.beta"
 license = "Apache 2.0"
+published-at = "0xe0917b74a5912e4ad186ac634e29c922ab83903f71af7500969f9411706f9b9a"
 
 [dependencies.Sui]
 git = "https://github.com/MystenLabs/sui.git"
@@ -25,7 +26,7 @@ subdir = "crates/sui-framework/packages/sui-framework"
 rev = "a4185da5659d8d299d34e1bb2515ff1f7e32a20a"
 
 [addresses]
-sui_extensions = "0x0"
+sui_extensions = "0xe0917b74a5912e4ad186ac634e29c922ab83903f71af7500969f9411706f9b9a"
 
 [dev-dependencies]
 
