@@ -29,7 +29,7 @@ rev = "a4185da5659d8d299d34e1bb2515ff1f7e32a20a"
 local = "../sui_extensions"
 
 [addresses]
-stablecoin = "0x346e3233f61eb0055713417bfaddda7dc3bf26816faad1f7606994a368b92917"
+stablecoin = "0x0"
 
 [dev-dependencies]
 
