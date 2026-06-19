@@ -19,8 +19,8 @@ module sui_extensions::two_step_role_tests {
     use sui::{
         event,
         test_scenario::{Self, Scenario},
-        test_utils::{assert_eq}
     };
+    use std::unit_test;
     use sui_extensions::{
         test_utils::last_event_by_type,
         two_step_role::{Self, TwoStepRole}
@@ -45,12 +45,12 @@ module sui_extensions::two_step_role_tests {
         let active_address = role.active_address();
         role.begin_role_transfer(new_address, scenario.ctx());
 
-        assert_eq(role.active_address(), active_address);
-        assert_eq(role.pending_address(), option::some(new_address));
+        unit_test::assert_eq!(role.active_address(), active_address);
+        unit_test::assert_eq!(role.pending_address(), option::some(new_address));
 
         let expected_event = two_step_role::create_role_transfer_started_event<TWO_STEP_ROLE_TESTS>(active_address, new_address);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
     }
 
     fun test_accept_role(role: &mut TwoStepRole<TWO_STEP_ROLE_TESTS>, scenario: &mut Scenario) {
@@ -58,14 +58,14 @@ module sui_extensions::two_step_role_tests {
         let new_active_address = role.pending_address();
         role.accept_role(scenario.ctx());
 
-        assert_eq(role.active_address(), *new_active_address.borrow());
-        assert_eq(role.pending_address().is_none(), true);
+        unit_test::assert_eq!(role.active_address(), *new_active_address.borrow());
+        unit_test::assert_eq!(role.pending_address().is_none(), true);
 
         let expected_event = two_step_role::create_role_transferred_event<TWO_STEP_ROLE_TESTS>(
             old_active_address, *new_active_address.borrow()
         );
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
     }
 
     // === Tests ===
@@ -75,8 +75,8 @@ module sui_extensions::two_step_role_tests {
     #[test]
     fun new__should_succeed() {
         let (scenario, role) = setup();
-        assert_eq(role.active_address(), ADMIN);
-        assert_eq(role.pending_address(), option::none());
+        unit_test::assert_eq!(role.active_address(), ADMIN);
+        unit_test::assert_eq!(role.pending_address(), option::none());
 
         role.destroy();
         scenario.end();

@@ -20,8 +20,9 @@ module sui_extensions::upgrade_service_tests {
         event,
         package::{Self, UpgradeTicket, UpgradeReceipt, UpgradeCap},
         test_scenario::{Self, Scenario},
-        test_utils::{assert_eq, destroy, create_one_time_witness}
+        test_utils::create_one_time_witness
     };
+    use std::unit_test;
     use sui_extensions::{
         upgrade_service::{Self, UpgradeService, AdminRole},
         test_utils::last_event_by_type,
@@ -44,7 +45,7 @@ module sui_extensions::upgrade_service_tests {
     fun new__should_fail_if_type_is_not_one_time_witness() {   
         let mut scenario = test_scenario::begin(DEPLOYER);
 
-        destroy(test_new(&mut scenario, NOT_ONE_TIME_WITNESS {}, UPGRADE_SERVICE_ADMIN));
+        unit_test::destroy(test_new(&mut scenario, NOT_ONE_TIME_WITNESS {}, UPGRADE_SERVICE_ADMIN));
         
         scenario.end();
     }
@@ -53,7 +54,7 @@ module sui_extensions::upgrade_service_tests {
     fun new__should_succeed_and_pass_all_assertions() {   
         let mut scenario = test_scenario::begin(DEPLOYER);
 
-        destroy(test_new(&mut scenario, create_one_time_witness<UPGRADE_SERVICE_TESTS>(), UPGRADE_SERVICE_ADMIN));
+        unit_test::destroy(test_new(&mut scenario, create_one_time_witness<UPGRADE_SERVICE_TESTS>(), UPGRADE_SERVICE_ADMIN));
         
         scenario.end();
     }
@@ -70,7 +71,7 @@ module sui_extensions::upgrade_service_tests {
         // Attempt to deposit an `UpgradeCap` that has a different package id from the package that
         // defines `UPGRADE_SERVICE_TESTS`, should fail.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        assert_eq(RANDOM_ADDRESS != @sui_extensions, true);
+        unit_test::assert_eq!(RANDOM_ADDRESS != @sui_extensions, true);
         let upgrade_cap_for_random_package = create_upgrade_cap(&mut scenario, RANDOM_ADDRESS.to_id());
         test_deposit<UPGRADE_SERVICE_TESTS>(&scenario, upgrade_cap_for_random_package);
         
@@ -266,7 +267,7 @@ module sui_extensions::upgrade_service_tests {
 
         // Random address attempts to authorize an upgrade, should fail.
         scenario.next_tx(RANDOM_ADDRESS);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -285,7 +286,7 @@ module sui_extensions::upgrade_service_tests {
 
         // Attempt to authorize an upgrade after the `UpgradeCap` has been extracted, should fail.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -300,7 +301,7 @@ module sui_extensions::upgrade_service_tests {
 
         // Authorize an upgrade.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -309,7 +310,7 @@ module sui_extensions::upgrade_service_tests {
         // Attempt to authorize another upgrade, should fail as there is a pending
         // upgrade.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -332,7 +333,7 @@ module sui_extensions::upgrade_service_tests {
 
         // Attempt to authorize an upgrade that has a more permissive policy, should fail.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -346,7 +347,7 @@ module sui_extensions::upgrade_service_tests {
         let mut scenario = setup_with_shared_upgrade_service();
 
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
-        destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
+        unit_test::destroy(test_authorize_upgrade<UPGRADE_SERVICE_TESTS>(
             &mut scenario,
             package::compatible_policy(),
             TEST_DIGEST
@@ -426,7 +427,7 @@ module sui_extensions::upgrade_service_tests {
             TEST_DIGEST
         );
         let upgrade_receipt_for_random_package = package::test_upgrade(upgrade_ticket_for_random_package);
-        destroy(upgrade_cap_for_random_package);
+        unit_test::destroy(upgrade_cap_for_random_package);
 
         // Attempt to commit the upgrade using an `UpgradeReceipt` that did not derive from the `UpgradeCap`, should fail.
         scenario.next_tx(UPGRADE_SERVICE_ADMIN);
@@ -478,7 +479,7 @@ module sui_extensions::upgrade_service_tests {
         // This is a workaround to make the test environment isolated.
         let mut scenario = test_scenario::begin(DEPLOYER);
         
-        assert_eq(UPGRADE_CAP_PACKAGE_ID != @sui_extensions, true);
+        unit_test::assert_eq!(UPGRADE_CAP_PACKAGE_ID != @sui_extensions, true);
         
         let mut upgrade_service = test_new(&mut scenario, create_one_time_witness<UPGRADE_SERVICE_TESTS>(), UPGRADE_SERVICE_ADMIN);
         let upgrade_cap = create_upgrade_cap(&mut scenario, UPGRADE_CAP_PACKAGE_ID.to_id());
@@ -492,9 +493,9 @@ module sui_extensions::upgrade_service_tests {
     fun test_new<T: drop>(scenario: &mut Scenario, witness: T, admin: address): UpgradeService<T> {
         let (upgrade_service, _) = upgrade_service::new<T>(witness, admin, scenario.ctx());
 
-        assert_eq(upgrade_service.exists_upgrade_cap(), false);
-        assert_eq(upgrade_service.admin(), admin);
-        assert_eq(upgrade_service.pending_admin(), option::none());
+        unit_test::assert_eq!(upgrade_service.exists_upgrade_cap(), false);
+        unit_test::assert_eq!(upgrade_service.admin(), admin);
+        unit_test::assert_eq!(upgrade_service.pending_admin(), option::none());
 
         upgrade_service
     }
@@ -509,8 +510,8 @@ module sui_extensions::upgrade_service_tests {
         
         upgrade_service.deposit(upgrade_cap);
 
-        assert_eq(upgrade_service.exists_upgrade_cap(), true);
-        assert_eq(object::id(upgrade_service.borrow_upgrade_cap_for_testing()), expected_upgrade_cap_id);
+        unit_test::assert_eq!(upgrade_service.exists_upgrade_cap(), true);
+        unit_test::assert_eq!(object::id(upgrade_service.borrow_upgrade_cap_for_testing()), expected_upgrade_cap_id);
         check_upgrade_service_and_upgrade_cap(
             &upgrade_service,
             expected_upgrade_cap_package,
@@ -519,8 +520,8 @@ module sui_extensions::upgrade_service_tests {
         );
 
         // Ensure that the correct event was emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             upgrade_service::create_upgrade_cap_deposited_event<T>(expected_upgrade_cap_id)
         );
@@ -537,11 +538,11 @@ module sui_extensions::upgrade_service_tests {
         let prev_upgrade_cap_policy = upgrade_service.borrow_upgrade_cap_for_testing().policy();
 
         upgrade_service.extract(UPGRADE_CAP_RECIPIENT, scenario.ctx());
-        assert_eq(upgrade_service.exists_upgrade_cap(), false);
+        unit_test::assert_eq!(upgrade_service.exists_upgrade_cap(), false);
 
         // Ensure that the correct event was emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             upgrade_service::create_upgrade_cap_extracted_event<T>(prev_upgrade_cap_id)
         );
@@ -567,12 +568,12 @@ module sui_extensions::upgrade_service_tests {
         upgrade_service.destroy_empty(scenario.ctx());
 
         // Ensure that the correct event was emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(event::events_by_type<upgrade_service::UpgradeServiceDestroyed<T>>().length(), 1);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(event::events_by_type<upgrade_service::UpgradeServiceDestroyed<T>>().length(), 1);
 
         // Ensure that the `UpgradeService<T>` was destroyed.
         let prev_tx_effects = scenario.next_tx(RANDOM_ADDRESS);
-        assert_eq(prev_tx_effects.deleted(), vector[upgrade_service_object_id]);
+        unit_test::assert_eq!(prev_tx_effects.deleted(), vector[upgrade_service_object_id]);
     }
 
     fun test_change_admin<T>(scenario: &mut Scenario, new_admin: address){
@@ -583,12 +584,12 @@ module sui_extensions::upgrade_service_tests {
         upgrade_service.change_admin(new_admin, scenario.ctx());
 
         // Ensure that the admin states are correctly set.
-        assert_eq(upgrade_service.admin(), current_admin);
-        assert_eq(upgrade_service.pending_admin(), option::some(new_admin));
+        unit_test::assert_eq!(upgrade_service.admin(), current_admin);
+        unit_test::assert_eq!(upgrade_service.pending_admin(), option::some(new_admin));
 
         // Ensure that the correct event was emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             two_step_role::create_role_transfer_started_event<AdminRole<T>>(current_admin, new_admin)
         );
@@ -605,12 +606,12 @@ module sui_extensions::upgrade_service_tests {
         upgrade_service.accept_admin(scenario.ctx());
 
         // Ensure that the admin states are correctly set.
-        assert_eq(upgrade_service.admin(), pending_admin);
-        assert_eq(upgrade_service.pending_admin(), option::none());
+        unit_test::assert_eq!(upgrade_service.admin(), pending_admin);
+        unit_test::assert_eq!(upgrade_service.pending_admin(), option::none());
 
         // Ensure that the correct event was emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             two_step_role::create_role_transferred_event<AdminRole<T>>(current_admin, pending_admin)
         );
@@ -643,8 +644,8 @@ module sui_extensions::upgrade_service_tests {
         );
 
         // Ensure that the correct events were emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(), 
             upgrade_service::create_authorize_upgrade_event<T>(prev_upgrade_cap_package, policy)
         );
@@ -670,8 +671,8 @@ module sui_extensions::upgrade_service_tests {
         );
 
         // Ensure that the correct events were emitted.
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(), 
             upgrade_service::create_commit_upgrade_event<T>(new_upgrade_cap_package)
         );
@@ -694,9 +695,9 @@ module sui_extensions::upgrade_service_tests {
     }
 
     fun check_upgrade_service_and_upgrade_cap<T>(upgrade_service: &UpgradeService<T>, package: ID, version: u64, policy: u8) {
-        assert_eq(upgrade_service.upgrade_cap_package(), package);
-        assert_eq(upgrade_service.upgrade_cap_version(), version);
-        assert_eq(upgrade_service.upgrade_cap_policy(), policy);
+        unit_test::assert_eq!(upgrade_service.upgrade_cap_package(), package);
+        unit_test::assert_eq!(upgrade_service.upgrade_cap_version(), version);
+        unit_test::assert_eq!(upgrade_service.upgrade_cap_policy(), policy);
         
         check_upgrade_cap(
             upgrade_service.borrow_upgrade_cap_for_testing(),
@@ -707,14 +708,14 @@ module sui_extensions::upgrade_service_tests {
     }
 
     fun check_upgrade_cap(upgrade_cap: &UpgradeCap, package: ID, version: u64, policy: u8) {
-        assert_eq(upgrade_cap.package(), package);
-        assert_eq(upgrade_cap.version(), version);
-        assert_eq(upgrade_cap.policy(), policy);
+        unit_test::assert_eq!(upgrade_cap.package(), package);
+        unit_test::assert_eq!(upgrade_cap.version(), version);
+        unit_test::assert_eq!(upgrade_cap.policy(), policy);
     }
 
     fun check_upgrade_ticket(upgrade_ticket: &UpgradeTicket, package: ID, policy: u8, digest: vector<u8>) {
-        assert_eq(upgrade_ticket.package(), package);
-        assert_eq(upgrade_ticket.policy(), policy);
-        assert_eq(*upgrade_ticket.digest(), digest);
+        unit_test::assert_eq!(upgrade_ticket.package(), package);
+        unit_test::assert_eq!(upgrade_ticket.policy(), policy);
+        unit_test::assert_eq!(*upgrade_ticket.digest(), digest);
     }
 }

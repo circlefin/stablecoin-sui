@@ -16,9 +16,9 @@
 
 #[test_only]
 module stablecoin::stablecoin_tests {
+    use std::unit_test;
     use sui::{
         test_scenario,
-        test_utils::{assert_eq}
     };
     use stablecoin::stablecoin::{Self, STABLECOIN};
     use sui_extensions::upgrade_service::UpgradeService;
@@ -32,7 +32,7 @@ module stablecoin::stablecoin_tests {
 
         scenario.next_tx(DEPLOYER);
         let upgrade_service = scenario.take_shared<UpgradeService<STABLECOIN>>();
-        assert_eq(upgrade_service.admin(), DEPLOYER);
+        unit_test::assert_eq!(upgrade_service.admin(), DEPLOYER);
         test_scenario::return_shared(upgrade_service);
 
         scenario.end();

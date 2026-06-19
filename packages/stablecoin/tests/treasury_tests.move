@@ -16,15 +16,14 @@
 
 #[test_only]
 module stablecoin::treasury_tests {
-    use std::string;
-    use std::ascii;
+    use std::{unit_test, string, ascii};
     use sui::{
         coin::{Self, Coin, CoinMetadata},
         deny_list::{Self, DenyList},
         event,
+        url,
         vec_set,
         test_scenario::{Self, Scenario}, 
-        test_utils::{Self, assert_eq, destroy},
     };
     use stablecoin::{
         entry,
@@ -73,7 +72,7 @@ module stablecoin::treasury_tests {
         scenario.next_tx(MINT_RECIPIENT);
         {
             let coin = scenario.take_from_sender<Coin<TREASURY_TESTS>>();
-            assert_eq(coin.value(), 1000000);
+            unit_test::assert_eq!(coin.value(), 1000000);
             transfer::public_transfer(coin, MINTER);
         };
 
@@ -88,6 +87,67 @@ module stablecoin::treasury_tests {
         // Transaction 7: remove controller
         scenario.next_tx(MASTER_MINTER);
         test_remove_controller(CONTROLLER, &mut scenario);
+
+        scenario.end();
+    }
+
+    #[test]
+    fun update_metadata__should_succeed_and_pass_all_assertions() {
+        let mut scenario = setup();
+
+        scenario.next_tx(METADATA_UPDATER);
+        test_update_metadata(
+            string::utf8(b"new name"),
+            ascii::string(b"new symbol"),
+            string::utf8(b"new description"),
+            ascii::string(b"new url"),
+            &mut scenario
+        );
+
+        // try to unset the URL
+        scenario.next_tx(METADATA_UPDATER);
+        test_update_metadata(
+            string::utf8(b"new name"),
+            ascii::string(b"new symbol"),
+            string::utf8(b"new description"),
+            ascii::string(b""),
+            &mut scenario
+        );
+
+        scenario.end();
+    }
+
+    #[test, expected_failure(abort_code = ::stablecoin::treasury::ENotMetadataUpdater)]
+    fun update_metadata__should_fail_if_not_metadata_updater() {
+        let mut scenario = setup();
+
+        scenario.next_tx(RANDOM_ADDRESS);
+        test_update_metadata(
+            string::utf8(b"new name"),
+            ascii::string(b"new symbol"),
+            string::utf8(b"new description"),
+            ascii::string(b"new url"),
+            &mut scenario
+        );
+
+        scenario.end();
+    }
+
+    #[test, expected_failure(abort_code = ::stablecoin::treasury::ETreasuryCapNotFound)]
+    fun update_metadata__should_fail_if_treasury_cap_not_found() {
+        let mut scenario = setup();
+
+        scenario.next_tx(RANDOM_ADDRESS);
+        remove_treasury_cap(&scenario);
+
+        scenario.next_tx(METADATA_UPDATER);
+        test_update_metadata(
+            string::utf8(b"new name"),
+            ascii::string(b"new symbol"),
+            string::utf8(b"new description"),
+            ascii::string(b"new url"),
+            &mut scenario
+        );
 
         scenario.end();
     }
@@ -108,11 +168,11 @@ module stablecoin::treasury_tests {
             let mint_cap = scenario.take_from_sender<MintCap<TREASURY_TESTS>>();
 
             treasury.configure_controller(RANDOM_ADDRESS, object::id(&mint_cap), scenario.ctx());
-            assert_eq(treasury.get_controllers_for_testing().contains(RANDOM_ADDRESS), true);
-            assert_eq(treasury.get_controllers_for_testing().contains(CONTROLLER), true); 
+            unit_test::assert_eq!(treasury.get_controllers_for_testing().contains(RANDOM_ADDRESS), true);
+            unit_test::assert_eq!(treasury.get_controllers_for_testing().contains(CONTROLLER), true);
             let mint_cap_id = *treasury.get_mint_cap_id(RANDOM_ADDRESS).borrow();
-            assert_eq(*treasury.get_mint_cap_id(CONTROLLER).borrow(), mint_cap_id);
-            assert_eq(treasury.mint_allowance(mint_cap_id), 10);
+            unit_test::assert_eq!(*treasury.get_mint_cap_id(CONTROLLER).borrow(), mint_cap_id);
+            unit_test::assert_eq!(treasury.mint_allowance(mint_cap_id), 10);
 
             scenario.return_to_sender(mint_cap);
             test_scenario::return_shared(treasury);
@@ -728,67 +788,6 @@ module stablecoin::treasury_tests {
         scenario.end();
     }
 
-    #[test]
-    fun update_metadata__should_succeed_and_pass_all_assertions() {
-        let mut scenario = setup();
-
-        scenario.next_tx(METADATA_UPDATER);
-        test_update_metadata(
-            string::utf8(b"new name"),
-            ascii::string(b"new symbol"),
-            string::utf8(b"new description"),
-            ascii::string(b"new url"),
-            &mut scenario
-        );
-
-        // try to unset the URL
-        scenario.next_tx(METADATA_UPDATER);
-        test_update_metadata(
-            string::utf8(b"new name"),
-            ascii::string(b"new symbol"),
-            string::utf8(b"new description"),
-            ascii::string(b""),
-            &mut scenario
-        );
-
-        scenario.end();
-    }
-
-    #[test, expected_failure(abort_code = ::stablecoin::treasury::ENotMetadataUpdater)]
-    fun update_metadata__should_fail_if_not_metadata_updater() {
-        let mut scenario = setup();
-
-        scenario.next_tx(RANDOM_ADDRESS);
-        test_update_metadata(
-            string::utf8(b"new name"),
-            ascii::string(b"new symbol"),
-            string::utf8(b"new description"),
-            ascii::string(b"new url"),
-            &mut scenario
-        );
-
-        scenario.end();
-    }
-
-    #[test, expected_failure(abort_code = ::stablecoin::treasury::ETreasuryCapNotFound)]
-    fun update_metadata__should_fail_if_not_treasury_cap_not_found() {
-        let mut scenario = setup();
-
-        scenario.next_tx(RANDOM_ADDRESS);
-        remove_treasury_cap(&scenario);
-
-        scenario.next_tx(METADATA_UPDATER);
-        test_update_metadata(
-            string::utf8(b"new name"),
-            ascii::string(b"new symbol"),
-            string::utf8(b"new description"),
-            ascii::string(b"new url"),
-            &mut scenario
-        );
-
-        scenario.end();
-    }
-
     #[test, expected_failure(abort_code = ::stablecoin::treasury::ENotPauser)]
     fun pause__should_fail_when_caller_is_not_pauser() {
         let mut scenario = setup();
@@ -927,8 +926,8 @@ module stablecoin::treasury_tests {
             let mint_cap = scenario.take_from_address<MintCap<TREASURY_TESTS>>(MINTER);
             
             let random_object_id = object::new(scenario.ctx());
-            assert_eq(treasury.is_authorized_mint_cap(object::id(&mint_cap)), true);
-            assert_eq(treasury.is_authorized_mint_cap(random_object_id.uid_to_inner()), false);
+            unit_test::assert_eq!(treasury.is_authorized_mint_cap(object::id(&mint_cap)), true);
+            unit_test::assert_eq!(treasury.is_authorized_mint_cap(random_object_id.uid_to_inner()), false);
             
             object::delete(random_object_id);
             test_scenario::return_to_address(MINTER, mint_cap);
@@ -962,7 +961,7 @@ module stablecoin::treasury_tests {
         scenario.next_tx(RANDOM_ADDRESS);
         {
             let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
-            assert_eq(treasury.get_mint_cap_id(RANDOM_ADDRESS), option::none());
+            unit_test::assert_eq!(treasury.get_mint_cap_id(RANDOM_ADDRESS), option::none());
             test_scenario::return_shared(treasury);
         };
 
@@ -986,49 +985,49 @@ module stablecoin::treasury_tests {
     // === Incompatible Treasury object tests ===
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun configure_controller__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.configure_controller(RANDOM_ADDRESS, object::id_from_address(RANDOM_ADDRESS_2), scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun configure_new_controller__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.configure_new_controller(RANDOM_ADDRESS, RANDOM_ADDRESS_2, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun remove_controller__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.remove_controller(RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun configure_minter__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.configure_minter(&deny_list, 100000, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun increment_mint_allowance__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.increment_mint_allowance(&deny_list, 100000, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun remove_minter__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         treasury.remove_minter(scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun mint__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         let mint_cap = treasury::create_mint_cap_for_testing(scenario.ctx());
         treasury.mint(
             &mint_cap,
@@ -1037,13 +1036,13 @@ module stablecoin::treasury_tests {
             RANDOM_ADDRESS,
             scenario.ctx()
         );
-        destroy(mint_cap);
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        std::unit_test::destroy(mint_cap);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun burn__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         let mint_cap = treasury::create_mint_cap_for_testing(scenario.ctx());
         treasury.burn(
             &mint_cap,
@@ -1051,41 +1050,41 @@ module stablecoin::treasury_tests {
             coin::zero<TREASURY_TESTS>(scenario.ctx()),
             scenario.ctx()
         );
-        destroy(mint_cap);
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        std::unit_test::destroy(mint_cap);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun blocklist__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, mut deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, mut deny_list) = before_incompatible_treasury_object_scenario();
         treasury.blocklist(&mut deny_list, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun unblocklist__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, mut deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, mut deny_list) = before_incompatible_treasury_object_scenario();
         treasury.unblocklist(&mut deny_list, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun pause__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, mut deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, mut deny_list) = before_incompatible_treasury_object_scenario();
         treasury.pause(&mut deny_list, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun unpause__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, mut deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, mut deny_list) = before_incompatible_treasury_object_scenario();
         treasury.unpause(&mut deny_list, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun update_metadata__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, treasury, deny_list, mut metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, treasury, deny_list, mut metadata) = before_incompatible_treasury_object_with_metadata_scenario();
         treasury.update_metadata(
             &mut metadata,
             string::utf8(b"new name"),
@@ -1094,65 +1093,67 @@ module stablecoin::treasury_tests {
             ascii::string(b"new url"),
             scenario.ctx()
         );
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        test_scenario::return_shared(metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun transfer_ownership__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::transfer_ownership(&mut treasury, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun accept_ownership__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::accept_ownership(&mut treasury, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun update_master_minter__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::update_master_minter(&mut treasury, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun update_blocklister__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::update_blocklister(&mut treasury, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun update_pauser__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::update_pauser(&mut treasury, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     #[test, expected_failure(abort_code = ::stablecoin::version_control::EIncompatibleVersion)]
     fun update_metadata_updater__should_fail_if_treasury_object_is_incompatible() {
-        let (mut scenario, mut treasury, deny_list, metadata) = before_incompatible_treasury_object_scenario();
+        let (mut scenario, mut treasury, deny_list) = before_incompatible_treasury_object_scenario();
         entry::update_metadata_updater(&mut treasury, RANDOM_ADDRESS, scenario.ctx());
-        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list, metadata);
+        after_incompatible_treasury_object_scenario(scenario, treasury, deny_list);
     }
 
     // === Helpers ===
 
+    #[allow(deprecated_usage)]
     fun setup(): Scenario {
         let mut scenario = test_scenario::begin(DEPLOYER);
         {
-            deny_list::create_for_test(scenario.ctx());
-            let otw = test_utils::create_one_time_witness<TREASURY_TESTS>();
+            deny_list::create_for_testing(scenario.ctx());
+            let otw = sui::test_utils::create_one_time_witness<TREASURY_TESTS>();
             let (treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
                 otw,
                 6,
                 b"SYMBOL",
                 b"NAME",
                 b"",
-                option::none(),
+                option::some(url::new_unsafe(ascii::string(b""))),
                 true,
                 scenario.ctx()
             );
@@ -1167,15 +1168,15 @@ module stablecoin::treasury_tests {
                 METADATA_UPDATER,
                 scenario.ctx()
             );
-            assert_eq(treasury.total_supply(), 0);
-            assert_eq(treasury.get_controllers_for_testing().length(), 0);
-            assert_eq(treasury.get_mint_allowances_for_testing().length(), 0);
-            assert_eq(treasury.roles().owner(), OWNER);
-            assert_eq(treasury.roles().master_minter(), MASTER_MINTER);
-            assert_eq(treasury.roles().blocklister(), BLOCKLISTER);
-            assert_eq(treasury.roles().pauser(), PAUSER);
-            assert_eq(treasury.roles().metadata_updater(), METADATA_UPDATER);
-            assert_eq(treasury.compatible_versions(), vector[version_control::current_version()]);
+            unit_test::assert_eq!(treasury.total_supply(), 0);
+            unit_test::assert_eq!(treasury.get_controllers_for_testing().length(), 0);
+            unit_test::assert_eq!(treasury.get_mint_allowances_for_testing().length(), 0);
+            unit_test::assert_eq!(treasury.roles().owner(), OWNER);
+            unit_test::assert_eq!(treasury.roles().master_minter(), MASTER_MINTER);
+            unit_test::assert_eq!(treasury.roles().blocklister(), BLOCKLISTER);
+            unit_test::assert_eq!(treasury.roles().pauser(), PAUSER);
+            unit_test::assert_eq!(treasury.roles().metadata_updater(), METADATA_UPDATER);
+            unit_test::assert_eq!(treasury.compatible_versions(), vector[version_control::current_version()]);
             treasury.assert_treasury_cap_exists();
             treasury.assert_deny_cap_exists();
 
@@ -1186,10 +1187,24 @@ module stablecoin::treasury_tests {
         scenario
     }
 
-    fun before_incompatible_treasury_object_scenario(): (Scenario, Treasury<TREASURY_TESTS>, DenyList, CoinMetadata<TREASURY_TESTS>) {
+    fun before_incompatible_treasury_object_scenario(): (Scenario, Treasury<TREASURY_TESTS>, DenyList) {
         let mut scenario = setup();
         
         // Set compatible_versions to an invalid version.
+        scenario.next_tx(OWNER);
+        let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
+        treasury.set_compatible_versions_for_testing(vec_set::singleton(version_control::current_version() + 1));
+        test_scenario::return_shared(treasury);
+
+        scenario.next_tx(OWNER);
+        let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
+        let deny_list = scenario.take_shared<DenyList>();
+        (scenario, treasury, deny_list)
+    }
+
+    fun before_incompatible_treasury_object_with_metadata_scenario(): (Scenario, Treasury<TREASURY_TESTS>, DenyList, CoinMetadata<TREASURY_TESTS>) {
+        let mut scenario = setup();
+
         scenario.next_tx(OWNER);
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         treasury.set_compatible_versions_for_testing(vec_set::singleton(version_control::current_version() + 1));
@@ -1202,10 +1217,9 @@ module stablecoin::treasury_tests {
         (scenario, treasury, deny_list, metadata)
     }
 
-    fun after_incompatible_treasury_object_scenario(scenario: Scenario, treasury: Treasury<TREASURY_TESTS>, deny_list: DenyList, metadata: CoinMetadata<TREASURY_TESTS>) {
+    fun after_incompatible_treasury_object_scenario(scenario: Scenario, treasury: Treasury<TREASURY_TESTS>, deny_list: DenyList) {
         test_scenario::return_shared(treasury);
         test_scenario::return_shared(deny_list);
-        test_scenario::return_shared(metadata);
         scenario.end();
     }
 
@@ -1214,21 +1228,21 @@ module stablecoin::treasury_tests {
 
         treasury.configure_new_controller(controller, minter, scenario.ctx());
         let mint_cap_id = *treasury.get_mint_cap_id(controller).borrow();
-        assert_eq(treasury.get_controllers_for_testing().contains(controller), true);
-        assert_eq(treasury.mint_allowance(*treasury.get_mint_cap_id(controller).borrow()), 0);
+        unit_test::assert_eq!(treasury.get_controllers_for_testing().contains(controller), true);
+        unit_test::assert_eq!(treasury.mint_allowance(*treasury.get_mint_cap_id(controller).borrow()), 0);
 
         let expected_event1 = treasury::create_mint_cap_created_event<TREASURY_TESTS>(mint_cap_id);
         let expected_event2 = treasury::create_controller_configured_event<TREASURY_TESTS>(controller, mint_cap_id);
-        assert_eq(event::num_events(), 2);
-        assert_eq(last_event_by_type(), expected_event1);
-        assert_eq(last_event_by_type(), expected_event2);
+        unit_test::assert_eq!(event::num_events(), 2);
+        unit_test::assert_eq!(last_event_by_type(), expected_event1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event2);
 
         test_scenario::return_shared(treasury);
 
         // Check new MintCap has been transferred to minter.
         scenario.next_tx(minter);
         let mint_cap = scenario.take_from_sender<MintCap<TREASURY_TESTS>>();
-        assert_eq(object::id(&mint_cap), mint_cap_id);
+        unit_test::assert_eq!(object::id(&mint_cap), mint_cap_id);
         scenario.return_to_sender(mint_cap);
     }
     
@@ -1236,12 +1250,12 @@ module stablecoin::treasury_tests {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
 
         treasury.configure_controller(controller, mint_cap_id, scenario.ctx());
-        assert_eq(treasury.get_controllers_for_testing().contains(controller), true);
-        assert_eq(treasury.mint_allowance(*treasury.get_mint_cap_id(controller).borrow()), 0);
+        unit_test::assert_eq!(treasury.get_controllers_for_testing().contains(controller), true);
+        unit_test::assert_eq!(treasury.mint_allowance(*treasury.get_mint_cap_id(controller).borrow()), 0);
 
         let expected_event = treasury::create_controller_configured_event<TREASURY_TESTS>(controller, mint_cap_id);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(treasury);
     }
@@ -1250,11 +1264,11 @@ module stablecoin::treasury_tests {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
 
         treasury.remove_controller(controller, scenario.ctx());
-        assert_eq(treasury.get_controllers_for_testing().contains(controller), false);
+        unit_test::assert_eq!(treasury.get_controllers_for_testing().contains(controller), false);
 
         let expected_event = treasury::create_controller_removed_event<TREASURY_TESTS>(controller);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(treasury);
     }
@@ -1266,11 +1280,11 @@ module stablecoin::treasury_tests {
         treasury.configure_minter(&deny_list, allowance, scenario.ctx());
 
         let mint_cap_id = *treasury.get_mint_cap_id(scenario.sender()).borrow();
-        assert_eq(treasury.mint_allowance(mint_cap_id), allowance);
+        unit_test::assert_eq!(treasury.mint_allowance(mint_cap_id), allowance);
 
         let expected_event = treasury::create_minter_configured_event<TREASURY_TESTS>(scenario.sender(), mint_cap_id, allowance);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(treasury);
         test_scenario::return_shared(deny_list);
@@ -1283,11 +1297,11 @@ module stablecoin::treasury_tests {
         treasury.increment_mint_allowance(&deny_list, allowance_increment, scenario.ctx());
 
         let mint_cap_id = *treasury.get_controllers_for_testing().borrow(scenario.sender());
-        assert_eq(treasury.mint_allowance(mint_cap_id), expected_allowance);
+        unit_test::assert_eq!(treasury.mint_allowance(mint_cap_id), expected_allowance);
 
         let expected_event = treasury::create_minter_allowance_incremented_event<TREASURY_TESTS>(scenario.sender(), mint_cap_id, allowance_increment, expected_allowance);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(treasury);
         test_scenario::return_shared(deny_list);
@@ -1299,12 +1313,11 @@ module stablecoin::treasury_tests {
         treasury.remove_minter(scenario.ctx());
 
         let mint_cap_id = *treasury.get_mint_cap_id(scenario.sender()).borrow();
-        assert_eq(treasury.mint_allowance(mint_cap_id), 0);  
-        assert_eq(treasury.get_mint_allowances_for_testing().contains(mint_cap_id), false);  
-
+        unit_test::assert_eq!(treasury.mint_allowance(mint_cap_id), 0);
+        unit_test::assert_eq!(treasury.get_mint_allowances_for_testing().contains(mint_cap_id), false);
         let expected_event = treasury::create_minter_removed_event<TREASURY_TESTS>(scenario.sender(), mint_cap_id);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(treasury);
     }
@@ -1316,12 +1329,12 @@ module stablecoin::treasury_tests {
 
         let allowance_before = treasury.mint_allowance(object::id(&mint_cap));
         treasury.mint(&mint_cap, &deny_list, mint_amount, recipient, scenario.ctx());
-        assert_eq(treasury.total_supply(), mint_amount);
-        assert_eq(treasury.mint_allowance(object::id(&mint_cap)), allowance_before - mint_amount);
+        unit_test::assert_eq!(treasury.total_supply(), mint_amount);
+        unit_test::assert_eq!(treasury.mint_allowance(object::id(&mint_cap)), allowance_before - mint_amount);
 
         let expected_event = treasury::create_mint_event<TREASURY_TESTS>(object::id(&mint_cap), recipient, mint_amount);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         scenario.return_to_sender(mint_cap);
         test_scenario::return_shared(treasury);
@@ -1330,13 +1343,13 @@ module stablecoin::treasury_tests {
         // Check new coin has been transferred to the recipient at the end of the previous transaction
         scenario.next_tx(recipient);
         let coin = scenario.take_from_sender<Coin<TREASURY_TESTS>>();
-        assert_eq(coin.value(), mint_amount);
+        unit_test::assert_eq!(coin.value(), mint_amount);
         scenario.return_to_sender(coin);
     }
 
     fun test_burn(scenario: &mut Scenario) {
         let sender = scenario.sender();
-        let deny_list = scenario.take_shared();
+        let deny_list = scenario.take_shared<DenyList>();
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         let mint_cap = scenario.take_from_sender<MintCap<TREASURY_TESTS>>();
         let coin = scenario.take_from_sender<Coin<TREASURY_TESTS>>();
@@ -1346,12 +1359,12 @@ module stablecoin::treasury_tests {
         let amount_before = treasury.total_supply();
         let burn_amount = coin.value();
         treasury.burn(&mint_cap, &deny_list, coin, scenario.ctx());
-        assert_eq(treasury.total_supply(), amount_before - burn_amount);
-        assert_eq(treasury.mint_allowance(object::id(&mint_cap)), allowance_before);
+        unit_test::assert_eq!(treasury.total_supply(), amount_before - burn_amount);
+        unit_test::assert_eq!(treasury.mint_allowance(object::id(&mint_cap)), allowance_before);
 
         let expected_event = treasury::create_burn_event<TREASURY_TESTS>(object::id(&mint_cap), burn_amount);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         scenario.return_to_sender(mint_cap);
         test_scenario::return_shared(treasury);
@@ -1359,7 +1372,7 @@ module stablecoin::treasury_tests {
 
         // Check coin ID has been deleted at the end of the previous transaction
         scenario.next_tx(sender);
-        assert_eq(scenario.ids_for_sender<Coin<TREASURY_TESTS>>().contains(&coin_id), false);
+        unit_test::assert_eq!(scenario.ids_for_sender<Coin<TREASURY_TESTS>>().contains(&coin_id), false);
     }
 
     fun test_blocklist(addr: address, scenario: &mut Scenario) {
@@ -1368,13 +1381,13 @@ module stablecoin::treasury_tests {
         let blocklisted_before = coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx());
 
         treasury.blocklist(&mut deny_list, addr, scenario.ctx());
-        assert_eq(coin::deny_list_v2_contains_next_epoch<TREASURY_TESTS>(&deny_list, addr), true);
-        assert_eq(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), blocklisted_before);
+        unit_test::assert_eq!(coin::deny_list_v2_contains_next_epoch<TREASURY_TESTS>(&deny_list, addr), true);
+        unit_test::assert_eq!(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), blocklisted_before);
 
         let expected_event = treasury::create_blocklisted_event<TREASURY_TESTS>(addr);
         let expected_event_count = 1 + event::events_by_type<deny_list::PerTypeConfigCreated>().length();
-        assert_eq(event::num_events() as u64, expected_event_count);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events() as u64, expected_event_count);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
@@ -1386,12 +1399,12 @@ module stablecoin::treasury_tests {
         let blocklisted_before = coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx());
 
         treasury.unblocklist(&mut deny_list, addr, scenario.ctx());
-        assert_eq(coin::deny_list_v2_contains_next_epoch<TREASURY_TESTS>(&deny_list, addr), false);
-        assert_eq(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), blocklisted_before);
+        unit_test::assert_eq!(coin::deny_list_v2_contains_next_epoch<TREASURY_TESTS>(&deny_list, addr), false);
+        unit_test::assert_eq!(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), blocklisted_before);
 
         let expected_event = treasury::create_unblocklisted_event<TREASURY_TESTS>(addr);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
@@ -1400,7 +1413,7 @@ module stablecoin::treasury_tests {
     fun test_transfer_ownership(new_owner: address, scenario: &mut Scenario) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         entry::transfer_ownership(&mut treasury, new_owner, scenario.ctx());
-        assert_eq(*treasury.roles().pending_owner().borrow(), new_owner);
+        unit_test::assert_eq!(*treasury.roles().pending_owner().borrow(), new_owner);
         test_scenario::return_shared(treasury);
     }
 
@@ -1408,36 +1421,77 @@ module stablecoin::treasury_tests {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         let pending_owner = treasury.roles().pending_owner();
         entry::accept_ownership(&mut treasury, scenario.ctx());
-        assert_eq(treasury.roles().owner(), *pending_owner.borrow());
-        assert_eq(treasury.roles().pending_owner().is_none(), true);
+        unit_test::assert_eq!(treasury.roles().owner(), *pending_owner.borrow());
+        unit_test::assert_eq!(treasury.roles().pending_owner().is_none(), true);
         test_scenario::return_shared(treasury);
     }
 
     fun test_update_master_minter(new_master_minter: address, scenario: &mut Scenario) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         entry::update_master_minter(&mut treasury, new_master_minter, scenario.ctx());
-        assert_eq(treasury.roles().master_minter(), new_master_minter);
+        unit_test::assert_eq!(treasury.roles().master_minter(), new_master_minter);
         test_scenario::return_shared(treasury);
     }
 
     fun test_update_blocklister(new_blocklister: address, scenario: &mut Scenario) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         entry::update_blocklister(&mut treasury, new_blocklister, scenario.ctx());
-        assert_eq(treasury.roles().blocklister(), new_blocklister);
+        unit_test::assert_eq!(treasury.roles().blocklister(), new_blocklister);
         test_scenario::return_shared(treasury);
     }
 
     fun test_update_pauser(new_pauser: address, scenario: &mut Scenario) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         entry::update_pauser(&mut treasury, new_pauser, scenario.ctx());
-        assert_eq(treasury.roles().pauser(), new_pauser);
+        unit_test::assert_eq!(treasury.roles().pauser(), new_pauser);
         test_scenario::return_shared(treasury);
     }
 
     fun test_update_metadata_updater(new_metadata_updater: address, scenario: &mut Scenario) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
         entry::update_metadata_updater(&mut treasury, new_metadata_updater, scenario.ctx());
-        assert_eq(treasury.roles().metadata_updater(), new_metadata_updater);
+        unit_test::assert_eq!(treasury.roles().metadata_updater(), new_metadata_updater);
+        test_scenario::return_shared(treasury);
+    }
+
+    fun test_update_metadata(
+        name: string::String,
+        symbol: ascii::String,
+        description: string::String,
+        icon_url: ascii::String,
+        scenario: &mut Scenario
+    ) {
+        let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
+        let mut metadata = scenario.take_shared<CoinMetadata<TREASURY_TESTS>>();
+
+        let expected_event = treasury::create_metadata_updated_event<TREASURY_TESTS>(
+            copy name,
+            copy symbol,
+            copy description,
+            copy icon_url
+        );
+
+        treasury::update_metadata(
+            &treasury,
+            &mut metadata,
+            copy name,
+            copy symbol,
+            copy description,
+            copy icon_url,
+            scenario.ctx()
+        );
+
+        unit_test::assert_eq!(metadata.get_name(), name);
+        unit_test::assert_eq!(metadata.get_symbol(), symbol);
+        unit_test::assert_eq!(metadata.get_description(), description);
+
+        let icon_url_option = metadata.get_icon_url();
+        unit_test::assert_eq!(option::is_some(&icon_url_option), true);
+
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(last_event_by_type(), expected_event);
+
+        test_scenario::return_shared(metadata);
         test_scenario::return_shared(treasury);
     }
 
@@ -1447,12 +1501,12 @@ module stablecoin::treasury_tests {
         let paused_before = coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx());
 
         treasury.pause(&mut deny_list, scenario.ctx());
-        assert_eq(coin::deny_list_v2_is_global_pause_enabled_next_epoch<TREASURY_TESTS>(&deny_list), true);
-        assert_eq(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), paused_before);
+        unit_test::assert_eq!(coin::deny_list_v2_is_global_pause_enabled_next_epoch<TREASURY_TESTS>(&deny_list), true);
+        unit_test::assert_eq!(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), paused_before);
 
         let expected_event_count = 1 + event::events_by_type<deny_list::PerTypeConfigCreated>().length();
-        assert_eq(event::num_events() as u64, expected_event_count);
-        assert_eq(event::events_by_type<treasury::Pause<TREASURY_TESTS>>().length(), 1);
+        unit_test::assert_eq!(event::num_events() as u64, expected_event_count);
+        unit_test::assert_eq!(event::events_by_type<treasury::Pause<TREASURY_TESTS>>().length(), 1);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
@@ -1465,58 +1519,34 @@ module stablecoin::treasury_tests {
 
         treasury.unpause(&mut deny_list, scenario.ctx());
 
-        assert_eq(coin::deny_list_v2_is_global_pause_enabled_next_epoch<TREASURY_TESTS>(&deny_list), false);
-        assert_eq(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), paused_before);
+        unit_test::assert_eq!(coin::deny_list_v2_is_global_pause_enabled_next_epoch<TREASURY_TESTS>(&deny_list), false);
+        unit_test::assert_eq!(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), paused_before);
 
-        assert_eq(event::num_events(), 1);
-        assert_eq(event::events_by_type<treasury::Unpause<TREASURY_TESTS>>().length(), 1);
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(event::events_by_type<treasury::Unpause<TREASURY_TESTS>>().length(), 1);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
     }
 
     fun test_is_blocklisted_current_epoch(scenario: &mut Scenario, addr: address, expected: bool) {
-        let deny_list = scenario.take_shared();
+        let deny_list = scenario.take_shared<DenyList>();
         let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
 
-        assert_eq(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), expected);
+        unit_test::assert_eq!(coin::deny_list_v2_contains_current_epoch<TREASURY_TESTS>(&deny_list, addr, scenario.ctx()), expected);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
     }
 
     fun test_is_paused_current_epoch(scenario: &mut Scenario, expected: bool) {
-        let deny_list = scenario.take_shared();
+        let deny_list = scenario.take_shared<DenyList>();
         let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
 
-        assert_eq(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), expected);
+        unit_test::assert_eq!(coin::deny_list_v2_is_global_pause_enabled_current_epoch<TREASURY_TESTS>(&deny_list, scenario.ctx()), expected);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
-    }
-
-    fun test_update_metadata(
-        name: string::String,
-        symbol: ascii::String,
-        description: string::String,
-        url: ascii::String,
-        scenario: &mut Scenario
-    ) {
-        let treasury = scenario.take_shared<Treasury<TREASURY_TESTS>>();
-        let mut metadata = scenario.take_shared<CoinMetadata<TREASURY_TESTS>>();
-
-        treasury.update_metadata(&mut metadata, name, symbol, description, url, scenario.ctx());
-        assert_eq(metadata.get_name(), name);
-        assert_eq(metadata.get_symbol(), symbol);
-        assert_eq(metadata.get_description(), description);
-        assert_eq(metadata.get_icon_url().borrow().inner_url(), url);
-
-        let expected_event = treasury::create_metadata_updated_event<TREASURY_TESTS>(name, symbol, description, url);
-        assert_eq(event::num_events(), 1);
-        assert_eq(last_event_by_type(), expected_event);
-
-        test_scenario::return_shared(treasury);
-        test_scenario::return_shared(metadata);
     }
 
     fun remove_treasury_cap(scenario: &Scenario) {

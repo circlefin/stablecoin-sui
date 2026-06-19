@@ -19,7 +19,6 @@ module usdc::usdc_tests {
     use std::{string, ascii};
     use sui::{
         test_scenario, 
-        test_utils::{assert_eq},
         coin::{Self, CoinMetadata, RegulatedCoinMetadata},
         deny_list::{Self, DenyList},
         url
@@ -37,9 +36,9 @@ module usdc::usdc_tests {
         usdc::init_for_testing(scenario.ctx());
 
         let previous_tx_effects = scenario.next_tx(DEPLOYER);
-        assert_eq(previous_tx_effects.created().length(), 4);
-        assert_eq(previous_tx_effects.frozen().length(), 1);
-        assert_eq(previous_tx_effects.shared().length(), 3); // Shared metadata, treasury and upgrade service objects
+        std::unit_test::assert_eq!(previous_tx_effects.created().length(), 4);
+        std::unit_test::assert_eq!(previous_tx_effects.frozen().length(), 1);
+        std::unit_test::assert_eq!(previous_tx_effects.shared().length(), 3); // Shared metadata, treasury and upgrade service objects
 
         scenario.end();
     }
@@ -51,11 +50,11 @@ module usdc::usdc_tests {
 
         scenario.next_tx(DEPLOYER);
         let metadata = scenario.take_shared<CoinMetadata<USDC>>();
-        assert_eq(metadata.get_decimals(), 6);
-        assert_eq(metadata.get_name(), string::utf8(b"USDC"));
-        assert_eq(metadata.get_symbol(), ascii::string(b"USDC"));
-        assert_eq(metadata.get_description(), string::utf8(b"USDC is a US dollar-backed stablecoin issued by Circle. USDC is designed to provide a faster, safer, and more efficient way to send, spend, and exchange money around the world."));
-        assert_eq(metadata.get_icon_url(), option::some(url::new_unsafe(ascii::string(b"https://www.circle.com/hubfs/Brand/USDC/USDC_icon_32x32.png"))));
+        std::unit_test::assert_eq!(metadata.get_decimals(), 6);
+        std::unit_test::assert_eq!(metadata.get_name(), string::utf8(b"USDC"));
+        std::unit_test::assert_eq!(metadata.get_symbol(), ascii::string(b"USDC"));
+        std::unit_test::assert_eq!(metadata.get_description(), string::utf8(b"USDC is a US dollar-backed stablecoin issued by Circle. USDC is designed to provide a faster, safer, and more efficient way to send, spend, and exchange money around the world."));
+        std::unit_test::assert_eq!(metadata.get_icon_url(), option::some(url::new_unsafe(ascii::string(b"https://www.circle.com/hubfs/Brand/USDC/USDC_icon_32x32.png"))));
         test_scenario::return_shared(metadata);
 
         scenario.end();
@@ -67,7 +66,7 @@ module usdc::usdc_tests {
         usdc::init_for_testing(scenario.ctx());
 
         scenario.next_tx(DEPLOYER);
-        assert_eq(test_scenario::has_most_recent_immutable<RegulatedCoinMetadata<USDC>>(), true);
+        std::unit_test::assert_eq!(test_scenario::has_most_recent_immutable<RegulatedCoinMetadata<USDC>>(), true);
 
         scenario.end();
     }
@@ -79,7 +78,7 @@ module usdc::usdc_tests {
 
         scenario.next_tx(DEPLOYER);
         let treasury = scenario.take_shared<Treasury<USDC>>();
-        assert_eq(treasury.total_supply(), 0);
+        std::unit_test::assert_eq!(treasury.total_supply(), 0);
         test_scenario::return_shared(treasury);
 
         scenario.end();
@@ -89,7 +88,7 @@ module usdc::usdc_tests {
     fun init__should_create_shared_treasury_and_wrap_deny_cap() {
         let mut scenario = test_scenario::begin(DEPLOYER);
         usdc::init_for_testing(scenario.ctx());
-        deny_list::create_for_test(scenario.ctx());
+        deny_list::create_for_testing(scenario.ctx());
 
         scenario.next_tx(DEPLOYER);
 
@@ -98,7 +97,7 @@ module usdc::usdc_tests {
         let mut deny_list = scenario.take_shared<DenyList>();
 
         treasury.blocklist(&mut deny_list, RANDOM_ADDRESS, scenario.ctx());
-        assert_eq(coin::deny_list_v2_contains_next_epoch<USDC>(&deny_list, RANDOM_ADDRESS), true);
+        std::unit_test::assert_eq!(coin::deny_list_v2_contains_next_epoch<USDC>(&deny_list, RANDOM_ADDRESS), true);
 
         test_scenario::return_shared(deny_list);
         test_scenario::return_shared(treasury);
@@ -113,9 +112,10 @@ module usdc::usdc_tests {
 
         scenario.next_tx(DEPLOYER);
         let upgrade_service = scenario.take_shared<UpgradeService<USDC>>();
-        assert_eq(upgrade_service.admin(), DEPLOYER);
+        std::unit_test::assert_eq!(upgrade_service.admin(), DEPLOYER);
         test_scenario::return_shared(upgrade_service);
 
         scenario.end();
     }
 }
+

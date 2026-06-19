@@ -16,12 +16,12 @@
 
 #[test_only]
 module sui_extensions::test_utils {
+    use std::unit_test;
     use sui::event;
-    use sui::test_utils::assert_eq;
 
     public fun last_event_by_type<T: copy + drop>(): T {
         let events_by_type = event::events_by_type();
-        assert_eq(events_by_type.is_empty(), false);
+        unit_test::assert_eq!(events_by_type.is_empty(), false);
         *events_by_type.borrow(events_by_type.length() - 1)
     }
 }

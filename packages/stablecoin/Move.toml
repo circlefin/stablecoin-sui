@@ -16,13 +16,13 @@
 
 [package]
 name = "stablecoin"
-edition = "2024.beta"
+edition = "2024"
 license = "Apache 2.0"
 
 [dependencies.Sui]
 git = "https://github.com/MystenLabs/sui.git"
 subdir = "crates/sui-framework/packages/sui-framework"
-rev = "a4185da5659d8d299d34e1bb2515ff1f7e32a20a"
+rev = "mainnet-v1.62.1"
 
 [dependencies.sui_extensions]
 local = "../sui_extensions"

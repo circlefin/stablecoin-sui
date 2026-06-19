@@ -18,12 +18,14 @@
 /// as intended when given an outdated Treasury object.
 #[test_only]
 module stablecoin::treasury_migration_tests {
+    use std::unit_test;
+    use std::string;
     use sui::{
-        coin,
+        coin_registry,
         event,
         vec_set,
         test_scenario::{Self, Scenario}, 
-        test_utils::{assert_eq, destroy, create_one_time_witness},
+        test_utils::create_one_time_witness,
     };
     use stablecoin::{
         treasury::{Self, Treasury},
@@ -205,17 +207,18 @@ module stablecoin::treasury_migration_tests {
     fun setup(): Scenario {
         let mut scenario = test_scenario::begin(DEPLOYER);
 
-        let (treasury_cap, deny_cap, metadata) = coin::create_regulated_currency_v2(
+        let (mut currency_init, treasury_cap) = coin_registry::new_currency_with_otw(
             create_one_time_witness<TREASURY_MIGRATION_TESTS>(),
             6,
-            b"SYMBOL",
-            b"NAME",
-            b"",
-            option::none(),
-            true,
+            string::utf8(b"SYMBOL"),
+            string::utf8(b"NAME"),
+            string::utf8(b""),
+            string::utf8(b""),
             scenario.ctx()
         );
-        destroy(metadata);
+        let deny_cap = currency_init.make_regulated(true, scenario.ctx());
+        let metadata_cap = currency_init.finalize(scenario.ctx());
+        std::unit_test::destroy(metadata_cap);
 
         let mut treasury = treasury::new(
             treasury_cap,
@@ -231,7 +234,7 @@ module stablecoin::treasury_migration_tests {
         let previous_version = version_control::current_version() - 1;
         
         treasury.set_compatible_versions_for_testing(vec_set::singleton(previous_version));
-        assert_eq(treasury.compatible_versions(), vector[previous_version]);
+        unit_test::assert_eq!(treasury.compatible_versions(), vector[previous_version]);
         
         transfer::public_share_object(treasury);
 
@@ -244,11 +247,11 @@ module stablecoin::treasury_migration_tests {
         treasury.start_migration(scenario.ctx());
 
         let updated_compatible_versions = treasury.compatible_versions();
-        assert_eq(updated_compatible_versions.length(), 2);
-        assert_eq(updated_compatible_versions.contains(&version_control::current_version()), true);
+        unit_test::assert_eq!(updated_compatible_versions.length(), 2);
+        unit_test::assert_eq!(updated_compatible_versions.contains(&version_control::current_version()), true);
 
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             treasury::create_migration_started_event<TREASURY_MIGRATION_TESTS>(updated_compatible_versions)
         );
@@ -262,11 +265,11 @@ module stablecoin::treasury_migration_tests {
         treasury.abort_migration(scenario.ctx());
 
         let updated_compatible_versions = treasury.compatible_versions();
-        assert_eq(updated_compatible_versions.length(), 1);
-        assert_eq(updated_compatible_versions.contains(&version_control::current_version()), false);
+        unit_test::assert_eq!(updated_compatible_versions.length(), 1);
+        unit_test::assert_eq!(updated_compatible_versions.contains(&version_control::current_version()), false);
 
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             treasury::create_migration_aborted_event<TREASURY_MIGRATION_TESTS>(updated_compatible_versions)
         );
@@ -280,10 +283,10 @@ module stablecoin::treasury_migration_tests {
         treasury.complete_migration(scenario.ctx());
 
         let updated_compatible_versions = treasury.compatible_versions();
-        assert_eq(updated_compatible_versions, vector[version_control::current_version()]);
+        unit_test::assert_eq!(updated_compatible_versions, vector[version_control::current_version()]);
 
-        assert_eq(event::num_events(), 1);
-        assert_eq(
+        unit_test::assert_eq!(event::num_events(), 1);
+        unit_test::assert_eq!(
             last_event_by_type(),
             treasury::create_migration_completed_event<TREASURY_MIGRATION_TESTS>(updated_compatible_versions)
         );
@@ -294,14 +297,14 @@ module stablecoin::treasury_migration_tests {
     fun start_migration_to_custom_version_for_testing(scenario: &Scenario, version: u64) {
         let mut treasury = scenario.take_shared<Treasury<TREASURY_MIGRATION_TESTS>>();
 
-        assert_eq(treasury.compatible_versions().length(), 1);
+        unit_test::assert_eq!(treasury.compatible_versions().length(), 1);
 
         let mut compatible_versions = vec_set::from_keys(treasury.compatible_versions());
         compatible_versions.insert(version);
         treasury.set_compatible_versions_for_testing(compatible_versions);
 
-        assert_eq(treasury.compatible_versions().length(), 2);
-        assert_eq(treasury.compatible_versions().contains(&version), true);
+        unit_test::assert_eq!(treasury.compatible_versions().length(), 2);
+        unit_test::assert_eq!(treasury.compatible_versions().contains(&version), true);
 
         test_scenario::return_shared(treasury);
     }

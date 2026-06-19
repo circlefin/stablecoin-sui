@@ -129,7 +129,7 @@ module sui_extensions::upgrade_service {
     /// - Only callable if the `UpgradeCap` has not been used for an upgrade.
     entry fun deposit<T>(upgrade_service: &mut UpgradeService<T>, upgrade_cap: UpgradeCap) {
         let package_address_of_type = address::from_ascii_bytes(
-            type_name::get_with_original_ids<T>().get_address().as_bytes()
+            type_name::with_original_ids<T>().address_string().as_bytes()
         );
         let package_address_of_upgrade_cap = &upgrade_cap.package().to_address();
         assert!(package_address_of_type == package_address_of_upgrade_cap, ETypeNotFromPackage);
